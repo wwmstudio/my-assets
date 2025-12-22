@@ -1,5 +1,5 @@
 <template>
-  <div class="flex items-center justify-end gap-2 rounded-full bg-black/25 px-4 py-2 text-white">
+  <div class="flex items-center justify-end gap-2 rounded-full px-4 py-2">
     <NuxtLink
       v-for="item in items"
       :key="item.label"
@@ -24,17 +24,17 @@ const items = ref<Array<NavigationMenuItem>>([
   {
     label: 'Home',
     to: '/',
-    icon: 'material-symbols-light:family-home-outline'
+    icon: 'mdi:home-outline'
   },
   {
     label: 'Grid',
     to: '/grid',
-    icon: 'i-lucide-grid-2x2'
+    icon: 'mdi:view-grid-outline'
   },
   {
     label: 'Bento',
     to: '/bento',
-    icon: 'mingcute:grid-2-line'
+    icon: 'mdi:view-dashboard-outline'
   }
 ])
 </script>

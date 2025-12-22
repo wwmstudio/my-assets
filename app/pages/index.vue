@@ -1,19 +1,48 @@
 <script setup lang="ts">
 import { watch } from 'vue'
 
+definePageMeta({
+  pageTransition: {
+    name: 'page',
+    mode: 'out-in'
+  }
+})
+
 const { assets } = useAssets()
 const allAssets = computed(() => [...assets.value])
 
 const currentIndex = ref(0)
 const progress = ref(0)
 const defaultAutoplayDelay = 5000 // 5 seconds for images
-const thumbnailsPerPage = 5
 const thumbnailPage = ref(0)
+const thumbnailContainerRef = ref<HTMLElement | null>(null)
+const thumbnailContainerWidth = ref(0)
+
+// Calculate thumbnails per page based on container width
+// Each thumbnail: 80px (w-20) + 8px gap (gap-2) = 88px per thumbnail
+// Previous/Next buttons: 32px (w-8) + 8px gap = 40px each
+// Total button space: 40px * 2 = 80px
+const thumbnailsPerPage = computed(() => {
+  if (thumbnailContainerWidth.value === 0) return 5 // Default fallback
+  const thumbnailWidth = 80 // w-20 = 5rem = 80px
+  const gap = 8 // gap-2 = 0.5rem = 8px
+  const buttonWidth = 32 // w-8 = 2rem = 32px
+  const buttonGap = 8 // gap-2 = 0.5rem = 8px
+  const buttonSpace = (buttonWidth + buttonGap) * 2 // Both buttons with gaps
+
+  // Available width for thumbnails
+  const availableWidth = thumbnailContainerWidth.value - buttonSpace
+
+  // Calculate how many thumbnails fit
+  const count = Math.floor((availableWidth + gap) / (thumbnailWidth + gap))
+
+  // Ensure at least 1 thumbnail is shown
+  return Math.max(1, count)
+})
 let progressTimer: ReturnType<typeof setInterval> | null = null
 let autoplayTimer: ReturnType<typeof setInterval> | null = null
 let progressStartTime = 0
 const currentVideoRef = ref<HTMLVideoElement | null>(null)
-const showMainNavButtons = ref(false)
 let mouseMoveTimer: ReturnType<typeof setTimeout> | null = null
 const mouseTimeoutDelay = 2000 // 2 seconds
 
@@ -22,10 +51,16 @@ const isVideoPlaying = ref(true)
 const videoCurrentTime = ref(0)
 const videoDuration = ref(0)
 const isVideoMuted = ref(true)
-const showVideoControls = ref(false)
+const showControls = ref(false)
 const showPlayPauseIndicator = ref(false)
 let videoUpdateTimer: ReturnType<typeof setInterval> | null = null
 let playPauseIndicatorTimer: ReturnType<typeof setTimeout> | null = null
+
+// Seek indicator state
+const showSeekIndicator = ref(false)
+const seekIndicatorAmount = ref(0)
+const accumulatedSeekAmount = ref(0)
+let seekIndicatorTimer: ReturnType<typeof setTimeout> | null = null
 
 const carousel = useTemplateRef('carousel')
 
@@ -49,12 +84,12 @@ const thumbnailProgress = computed(() => {
 const visibleThumbnails = computed(() => {
   const assets = allAssets.value
   if (assets.length === 0) return []
-  if (assets.length <= thumbnailsPerPage) return assets
+  if (assets.length <= thumbnailsPerPage.value) return assets
 
   const start = thumbnailPage.value
   const result: typeof assets = []
 
-  for (let i = 0; i < thumbnailsPerPage; i++) {
+  for (let i = 0; i < thumbnailsPerPage.value; i++) {
     const index = (start + i) % assets.length
     const asset = assets[index]
     if (asset) {
@@ -65,17 +100,17 @@ const visibleThumbnails = computed(() => {
   return result
 })
 
-const canGoPrevious = computed(() => allAssets.value.length > thumbnailsPerPage)
-const canGoNext = computed(() => allAssets.value.length > thumbnailsPerPage)
+const canGoPrevious = computed(() => allAssets.value.length > thumbnailsPerPage.value)
+const canGoNext = computed(() => allAssets.value.length > thumbnailsPerPage.value)
 
 const goToPreviousPage = () => {
-  if (allAssets.value.length > thumbnailsPerPage) {
+  if (allAssets.value.length > thumbnailsPerPage.value) {
     thumbnailPage.value = (thumbnailPage.value - 1 + allAssets.value.length) % allAssets.value.length
   }
 }
 
 const goToNextPage = () => {
-  if (allAssets.value.length > thumbnailsPerPage) {
+  if (allAssets.value.length > thumbnailsPerPage.value) {
     thumbnailPage.value = (thumbnailPage.value + 1) % allAssets.value.length
   }
 }
@@ -83,7 +118,7 @@ const goToNextPage = () => {
 const getThumbnailGlobalIndex = (localIndex: number): number => {
   const assets = allAssets.value
   if (assets.length === 0) return -1
-  if (assets.length <= thumbnailsPerPage) {
+  if (assets.length <= thumbnailsPerPage.value) {
     return localIndex
   }
   return (thumbnailPage.value + localIndex) % assets.length
@@ -109,23 +144,95 @@ const goToNextSlide = () => {
   startAutoplay()
 }
 
+const showSeekIndicatorTemporary = (amount: number, isNewSeek: boolean = true, shouldAccumulate: boolean = true) => {
+  // If direction changed (positive to negative or vice versa), reset
+  const directionChanged =
+    showSeekIndicator.value &&
+    ((accumulatedSeekAmount.value > 0 && amount < 0) || (accumulatedSeekAmount.value < 0 && amount > 0))
+
+  // If indicator is already showing and it's a continuous seek in same direction, accumulate
+  if (showSeekIndicator.value && !isNewSeek && shouldAccumulate && !directionChanged) {
+    accumulatedSeekAmount.value += amount
+    seekIndicatorAmount.value = accumulatedSeekAmount.value
+  } else {
+    // New seek or direction changed, reset accumulated amount
+    accumulatedSeekAmount.value = amount
+    seekIndicatorAmount.value = amount
+  }
+
+  showSeekIndicator.value = true
+
+  // Clear existing timer
+  if (seekIndicatorTimer) {
+    clearTimeout(seekIndicatorTimer)
+  }
+
+  // Hide after 1.5 seconds
+  seekIndicatorTimer = setTimeout(() => {
+    showSeekIndicator.value = false
+    accumulatedSeekAmount.value = 0
+    seekIndicatorTimer = null
+  }, 1500)
+}
+
+const seekVideo = (amount: number) => {
+  if (currentVideoRef.value && isVideoPlaying.value) {
+    const currentTime = currentVideoRef.value.currentTime
+    const duration = videoDuration.value
+
+    // Check if we're near the boundaries (less than 10 seconds remaining)
+    const remainingTime = duration - currentTime
+    const timeFromStart = currentTime
+
+    // Determine if we should accumulate based on remaining time
+    let shouldAccumulate = true
+    if (amount > 0 && remainingTime < 10) {
+      // Forward seek but less than 10s remaining - don't accumulate
+      shouldAccumulate = false
+    } else if (amount < 0 && timeFromStart < 10) {
+      // Backward seek but less than 10s from start - don't accumulate
+      shouldAccumulate = false
+    }
+
+    const newTime = Math.max(0, Math.min(duration, currentTime + amount))
+    currentVideoRef.value.currentTime = newTime
+    videoCurrentTime.value = newTime
+    // Show seek indicator (pass false if indicator is already showing to accumulate)
+    showSeekIndicatorTemporary(amount, !showSeekIndicator.value, shouldAccumulate)
+    // Reset and restart the slide progress indicator
+    startProgress()
+    stopAutoplay()
+    startAutoplay()
+  }
+}
+
 const handleKeyDown = (e: KeyboardEvent) => {
-  if (e.key === 'ArrowLeft') {
-    carousel.value?.emblaApi?.scrollPrev()
-    startProgress()
-    stopAutoplay()
-    startAutoplay()
-  } else if (e.key === 'ArrowRight') {
-    carousel.value?.emblaApi?.scrollNext()
-    startProgress()
-    stopAutoplay()
-    startAutoplay()
-  } else if (e.key === ' ' || e.key === 'Spacebar') {
+  if (e.key === ' ' || e.key === 'Spacebar') {
     // Space bar to play/pause video
     e.preventDefault()
     if (currentAsset.value?.type === 'video') {
       toggleVideoPlayPause()
     }
+  } else if (e.key === 'ArrowLeft') {
+    e.preventDefault()
+    if (currentAsset.value?.type === 'video' && isVideoPlaying.value) {
+      seekVideo(-10)
+    } else {
+      carousel.value?.emblaApi?.scrollPrev()
+    }
+    startProgress()
+    stopAutoplay()
+    startAutoplay()
+  } else if (e.key === 'ArrowRight') {
+    e.preventDefault()
+    if (currentAsset.value?.type === 'video' && isVideoPlaying.value) {
+      seekVideo(10)
+    } else {
+      carousel.value?.emblaApi?.scrollNext()
+    }
+    startProgress()
+    stopAutoplay()
+    startAutoplay()
   }
 }
 
@@ -178,10 +285,10 @@ const stopProgress = () => {
 
 const isAssetVisibleInCurrentPage = (assetIndex: number): boolean => {
   const assets = allAssets.value
-  if (assets.length <= thumbnailsPerPage) return true
+  if (assets.length <= thumbnailsPerPage.value) return true
 
   const start = thumbnailPage.value
-  for (let i = 0; i < thumbnailsPerPage; i++) {
+  for (let i = 0; i < thumbnailsPerPage.value; i++) {
     const index = (start + i) % assets.length
     if (index === assetIndex) {
       return true
@@ -194,7 +301,7 @@ const handleSelect = (selectedIndex: number) => {
   currentIndex.value = selectedIndex
   // Only update thumbnail page if the selected asset is not visible in current page
   const assets = allAssets.value
-  if (assets.length > thumbnailsPerPage && !isAssetVisibleInCurrentPage(selectedIndex)) {
+  if (assets.length > thumbnailsPerPage.value && !isAssetVisibleInCurrentPage(selectedIndex)) {
     thumbnailPage.value = selectedIndex
   }
   startProgress()
@@ -369,23 +476,57 @@ const formatTime = (seconds: number): string => {
   return `${mins}:${secs.toString().padStart(2, '0')}`
 }
 
-const handleMouseMove = () => {
-  showMainNavButtons.value = true
-  if (currentAsset.value?.type === 'video') {
-    showVideoControls.value = true
+const formatFileSize = (bytes?: number): string => {
+  if (!bytes) return ''
+  const units = ['B', 'KB', 'MB', 'GB']
+  let size = bytes
+  let unitIndex = 0
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024
+    unitIndex++
   }
+  return `${size.toFixed(1)} ${units[unitIndex]}`
+}
 
-  // Clear existing timeout
+const formatDate = (dateString: string): string => {
+  const date = new Date(dateString)
+  return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+}
+
+const handleMouseMove = () => {
+  showControls.value = true
+
+  // Only hide if mouse is not over controls
+  if (!isMouseOverControls.value) {
+    // Clear existing timeout
+    if (mouseMoveTimer) {
+      clearTimeout(mouseMoveTimer)
+    }
+
+    // Set new timeout to hide buttons
+    mouseMoveTimer = setTimeout(() => {
+      showControls.value = false
+      mouseMoveTimer = null
+    }, mouseTimeoutDelay)
+  }
+}
+
+const isMouseOverControls = ref(false)
+
+const handleControlsMouseEnter = () => {
+  isMouseOverControls.value = true
+  // Clear any existing hide timer
   if (mouseMoveTimer) {
     clearTimeout(mouseMoveTimer)
+    mouseMoveTimer = null
   }
+}
 
-  // Set new timeout to hide buttons
+const handleControlsMouseLeave = () => {
+  isMouseOverControls.value = false
+  // Start hide timer when mouse leaves
   mouseMoveTimer = setTimeout(() => {
-    showMainNavButtons.value = false
-    if (currentAsset.value?.type === 'video') {
-      showVideoControls.value = false
-    }
+    showControls.value = false
     mouseMoveTimer = null
   }, mouseTimeoutDelay)
 }
@@ -405,6 +546,35 @@ watch(currentIndex, () => {
   // Video ref is updated in handleSelect, so we don't need to do it here
 })
 
+let resizeObserver: ResizeObserver | null = null
+
+// Update thumbnail container width
+const updateThumbnailContainerWidth = () => {
+  if (thumbnailContainerRef.value) {
+    thumbnailContainerWidth.value = thumbnailContainerRef.value.clientWidth
+  }
+}
+
+// Watch for container width changes
+watch(thumbnailContainerRef, (newRef) => {
+  if (newRef) {
+    updateThumbnailContainerWidth()
+    // Use ResizeObserver to watch for size changes
+    if (resizeObserver) {
+      resizeObserver.disconnect()
+    }
+    resizeObserver = new ResizeObserver(() => {
+      updateThumbnailContainerWidth()
+    })
+    resizeObserver.observe(newRef)
+  } else {
+    if (resizeObserver) {
+      resizeObserver.disconnect()
+      resizeObserver = null
+    }
+  }
+})
+
 // Disable body scroll when component is mounted
 onMounted(() => {
   document.body.style.overflow = 'hidden'
@@ -420,10 +590,19 @@ onUnmounted(() => {
   document.documentElement.style.overflow = ''
   window.removeEventListener('keydown', handleKeyDown)
   window.removeEventListener('mousemove', handleMouseMove)
+  window.removeEventListener('resize', updateThumbnailContainerWidth)
+  if (resizeObserver) {
+    resizeObserver.disconnect()
+    resizeObserver = null
+  }
   stopProgress()
   stopAutoplay()
   stopVideoUpdateTimer()
   clearMouseTimer()
+  if (seekIndicatorTimer) {
+    clearTimeout(seekIndicatorTimer)
+    seekIndicatorTimer = null
+  }
 })
 </script>
 
@@ -496,11 +675,28 @@ onUnmounted(() => {
       </div>
     </div>
 
+    <!-- Seek Indicator Overlay -->
+    <div
+      v-if="currentAsset?.type === 'video' && showSeekIndicator"
+      class="pointer-events-none fixed top-1/2 z-40 -translate-y-1/2 transition-opacity duration-300"
+      :class="[seekIndicatorAmount < 0 ? 'left-4' : 'right-4', showSeekIndicator ? 'opacity-100' : 'opacity-0']"
+    >
+      <div class="flex items-center gap-2 rounded-full bg-black/60 px-4 py-3 backdrop-blur-sm">
+        <Icon
+          :name="seekIndicatorAmount < 0 ? 'i-lucide-rewind' : 'i-lucide-fast-forward'"
+          class="h-6 w-6 text-white"
+        />
+        <span class="text-lg font-semibold text-white">
+          {{ seekIndicatorAmount > 0 ? '+' : '' }}{{ seekIndicatorAmount }}s
+        </span>
+      </div>
+    </div>
+
     <!-- Main Slider Navigation Buttons -->
     <div
-      v-show="showMainNavButtons"
+      v-show="showControls"
       class="fixed top-1/2 left-4 z-50 -translate-y-1/2 transition-opacity duration-300"
-      :class="showMainNavButtons ? 'opacity-100' : 'opacity-0'"
+      :class="showControls ? 'opacity-100' : 'opacity-0'"
     >
       <UButton
         icon="i-lucide-chevron-left"
@@ -512,9 +708,9 @@ onUnmounted(() => {
       />
     </div>
     <div
-      v-show="showMainNavButtons"
+      v-show="showControls"
       class="fixed top-1/2 right-4 z-50 -translate-y-1/2 transition-opacity duration-300"
-      :class="showMainNavButtons ? 'opacity-100' : 'opacity-0'"
+      :class="showControls ? 'opacity-100' : 'opacity-0'"
     >
       <UButton
         icon="i-lucide-chevron-right"
@@ -526,22 +722,134 @@ onUnmounted(() => {
       />
     </div>
 
-    <div class="fixed bottom-4 left-0 z-60 flex w-full items-end justify-end gap-2 px-4">
+    <div
+      class="fixed bottom-0 left-0 z-60 flex w-full flex-col items-end justify-center gap-2 p-4 lg:flex-row lg:justify-end"
+      :class="{
+        'bg-linear-to-t from-black to-transparent': showControls
+      }"
+    >
       <!-- Video Player Controls -->
       <div
-        v-if="currentAsset?.type === 'video'"
-        v-show="showVideoControls"
-        class="flex-1 rounded-full bg-black/50 px-4 py-3 backdrop-blur-sm transition-opacity duration-300"
-        :class="showVideoControls ? 'opacity-100' : 'opacity-0'"
+        v-show="showControls"
+        class="w-full flex-1 rounded-sm p-2 transition-opacity duration-300 lg:w-auto"
+        :class="showControls ? 'opacity-100' : 'opacity-0'"
+        @mouseenter="handleControlsMouseEnter"
+        @mouseleave="handleControlsMouseLeave"
       >
-        <div class="flex items-center gap-3">
+        <div
+          v-if="currentAsset"
+          class="space-y-2 px-3 py-2"
+        >
+          <!-- Title -->
+          <h3 class="text-lg font-semibold text-white">
+            {{ currentAsset.title }}
+          </h3>
+
+          <!-- Description -->
+          <p
+            v-if="currentAsset.description"
+            class="text-sm text-gray-300"
+          >
+            {{ currentAsset.description }}
+          </p>
+
+          <!-- Tags -->
+          <div
+            v-if="currentAsset.tags && currentAsset.tags.length > 0"
+            class="flex flex-wrap gap-1"
+          >
+            <UBadge
+              v-for="tag in currentAsset.tags"
+              :key="tag"
+              :label="tag"
+              color="primary"
+              variant="subtle"
+            />
+          </div>
+
+          <!-- Metadata Grid -->
+          <div class="flex flex-wrap gap-x-4 gap-y-2 text-xs text-gray-400">
+            <!-- Type -->
+            <div class="flex items-center gap-1">
+              <Icon
+                name="i-lucide-file"
+                class="h-3 w-3"
+              />
+              <span class="whitespace-nowrap capitalize">{{ currentAsset.type }}</span>
+            </div>
+
+            <!-- Format -->
+            <div
+              v-if="currentAsset.format"
+              class="flex items-center gap-1"
+            >
+              <Icon
+                name="i-lucide-file-type"
+                class="h-3 w-3"
+              />
+              <span class="whitespace-nowrap uppercase">{{ currentAsset.format }}</span>
+            </div>
+
+            <!-- Dimensions -->
+            <div
+              v-if="currentAsset.width && currentAsset.height"
+              class="flex items-center gap-1"
+            >
+              <Icon
+                name="i-lucide-maximize"
+                class="h-3 w-3"
+              />
+              <span class="whitespace-nowrap">{{ currentAsset.width }} × {{ currentAsset.height }}</span>
+            </div>
+
+            <!-- Duration (for videos) -->
+            <div
+              v-if="currentAsset.type === 'video' && currentAsset.duration"
+              class="flex items-center gap-1"
+            >
+              <Icon
+                name="i-lucide-clock"
+                class="h-3 w-3"
+              />
+              <span class="whitespace-nowrap">{{ formatTime(currentAsset.duration) }}</span>
+            </div>
+
+            <!-- File Size -->
+            <div
+              v-if="currentAsset.size"
+              class="flex items-center gap-1"
+            >
+              <Icon
+                name="i-lucide-hard-drive"
+                class="h-3 w-3"
+              />
+              <span class="whitespace-nowrap">{{ formatFileSize(currentAsset.size) }}</span>
+            </div>
+
+            <!-- Created Date -->
+            <div
+              v-if="currentAsset.createdAt"
+              class="flex items-center gap-1"
+            >
+              <Icon
+                name="i-lucide-calendar"
+                class="h-3 w-3"
+              />
+              <span class="whitespace-nowrap">{{ formatDate(currentAsset.createdAt) }}</span>
+            </div>
+          </div>
+        </div>
+        <div
+          v-if="currentAsset?.type === 'video'"
+          class="flex items-center gap-3"
+        >
           <!-- Play/Pause Button -->
           <UButton
             :icon="isVideoPlaying ? 'material-symbols:pause' : 'material-symbols:play-arrow'"
             size="sm"
             color="neutral"
             variant="ghost"
-            class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white hover:bg-white/20"
+            class="flex h-8 w-8 shrink-0 items-center justify-center rounded-sm text-white hover:bg-white/20"
             @click="toggleVideoPlayPause"
           />
 
@@ -575,18 +883,17 @@ onUnmounted(() => {
             size="sm"
             color="neutral"
             variant="ghost"
-            class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white hover:bg-white/20"
+            class="flex h-8 w-8 shrink-0 items-center justify-center rounded-sm text-white hover:bg-white/20"
             @click="toggleVideoMute"
           />
         </div>
       </div>
-      <div
-        v-else
-        class="flex-1"
-      />
 
       <!-- Thumbnail Gallery -->
-      <div class="flex shrink-0 items-center gap-2">
+      <div
+        ref="thumbnailContainerRef"
+        class="flex w-full shrink-0 items-center justify-center gap-2 lg:w-auto lg:justify-start"
+      >
         <!-- Previous Button -->
         <UButton
           v-if="canGoPrevious"
@@ -607,8 +914,9 @@ onUnmounted(() => {
             :ui="{
               base: 'border-0'
             }"
-            class="relative h-20 w-20 shrink-0 overflow-visible rounded-lg p-0 transition-all hover:scale-110"
+            class="tile-enter relative h-20 w-20 shrink-0 overflow-visible rounded-lg p-0 transition-all hover:scale-110"
             :class="[currentIndex === thumbnailPage * thumbnailsPerPage + index ? 'ring-white' : '']"
+            :style="{ animationDelay: `${index * 0.05}s` }"
             @click="goToImage(index)"
           >
             <NuxtImg
@@ -758,5 +1066,21 @@ onUnmounted(() => {
 
 .video-seekbar::-moz-range-track {
   background: transparent;
+}
+
+@keyframes tileFadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tile-enter {
+  animation: tileFadeInUp 0.6s ease-out forwards;
+  opacity: 0;
 }
 </style>

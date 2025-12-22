@@ -1,10 +1,17 @@
 <template>
-  <div class="container mx-auto px-4 py-8">
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+  <div class="container-fluid mx-auto px-4 py-8">
+    <div class="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
       <div
-        v-for="asset in allAssets"
+        v-for="(asset, index) in allAssets"
         :key="asset.id"
-        class="group relative aspect-square cursor-pointer overflow-hidden rounded-lg bg-gray-900 transition-transform"
+        tabindex="0"
+        role="button"
+        :aria-label="`Open ${asset.title} in lightbox`"
+        class="tile-enter group relative aspect-square cursor-pointer overflow-hidden rounded-lg bg-gray-900 transition-transform focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
+        :style="{ animationDelay: `${index * 0.05}s` }"
+        @click="openLightbox(index)"
+        @keydown.enter="openLightbox(index)"
+        @keydown.space.prevent="openLightbox(index)"
       >
         <!-- Image Asset -->
         <NuxtImg
@@ -47,9 +54,7 @@
         </div>
 
         <!-- Overlay with title -->
-        <div
-          class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-4 opacity-0 transition-opacity group-hover:opacity-100"
-        >
+        <div class="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/80 to-transparent p-4">
           <h3 class="text-sm font-semibold text-white">
             {{ asset.title }}
           </h3>
@@ -69,12 +74,55 @@
     >
       <p class="text-gray-500">No assets found</p>
     </div>
+
+    <!-- Lightbox -->
+    <LightBox
+      v-model="isLightboxOpen"
+      :assets="allAssets as Asset[]"
+      :initial-index="lightboxIndex"
+      @update:index="lightboxIndex = $event"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
+import type { Asset } from '~/types/asset'
+
+definePageMeta({
+  pageTransition: {
+    name: 'page',
+    mode: 'out-in'
+  }
+})
+
 const { assets } = useAssets()
 const allAssets = computed(() => [...assets.value])
+
+// Lightbox state
+const isLightboxOpen = ref(false)
+const lightboxIndex = ref(0)
+
+// Lightbox functions
+const openLightbox = (index: number) => {
+  lightboxIndex.value = index
+  isLightboxOpen.value = true
+}
 </script>
 
-<style scoped></style>
+<style scoped>
+@keyframes tileFadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tile-enter {
+  animation: tileFadeInUp 0.6s ease-out forwards;
+  opacity: 0;
+}
+</style>
