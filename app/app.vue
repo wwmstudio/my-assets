@@ -29,7 +29,7 @@ const inHomePage = computed(() => useRoute().path === '/')
 <template>
   <UApp class="bg-white text-black">
     <UHeader
-      class="border-none shadow-none"
+      class="border-none shadow-none backdrop-blur-none"
       :class="{
         'bg-transparent shadow-none': inHomePage,
         'bg-white text-black': !inHomePage
