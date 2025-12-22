@@ -27,12 +27,12 @@ const inHomePage = computed(() => useRoute().path === '/')
 </script>
 
 <template>
-  <UApp>
+  <UApp class="bg-white text-black">
     <UHeader
-      class="border-none bg-transparent shadow-none backdrop-blur-none"
+      class="border-none shadow-none"
       :class="{
         'bg-transparent shadow-none': inHomePage,
-        'bg-white/70 text-black backdrop-blur-sm': !inHomePage
+        'bg-white text-black': !inHomePage
       }"
       :ui="{
         container: 'max-w-auto'
@@ -61,7 +61,7 @@ const inHomePage = computed(() => useRoute().path === '/')
       </template>
     </UHeader>
 
-    <UMain>
+    <UMain class="bg-white text-black">
       <NuxtPage />
     </UMain>
   </UApp>

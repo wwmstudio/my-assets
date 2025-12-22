@@ -703,7 +703,7 @@ onUnmounted(() => {
         size="lg"
         color="neutral"
         variant="solid"
-        class="flex h-12 w-12 items-center justify-center rounded-full bg-black/50 opacity-70 hover:bg-black/70 hover:opacity-100"
+        class="flex h-12 w-12 items-center justify-center rounded-full bg-black/50 text-white opacity-70 hover:bg-black/70 hover:opacity-100"
         @click="goToPreviousSlide"
       />
     </div>
@@ -717,7 +717,7 @@ onUnmounted(() => {
         size="lg"
         color="neutral"
         variant="solid"
-        class="flex h-12 w-12 items-center justify-center rounded-full bg-black/50 opacity-70 hover:bg-black/70 hover:opacity-100"
+        class="flex h-12 w-12 items-center justify-center rounded-full bg-black/50 text-white opacity-70 hover:bg-black/70 hover:opacity-100"
         @click="goToNextSlide"
       />
     </div>
@@ -901,7 +901,7 @@ onUnmounted(() => {
           size="xs"
           color="neutral"
           variant="solid"
-          class="flex h-8 w-8 items-center justify-center rounded-full bg-black/50 opacity-70 hover:bg-black/70 hover:opacity-100"
+          class="flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white opacity-70 hover:bg-black/70 hover:opacity-100"
           @click="goToPreviousPage"
         />
 
@@ -993,7 +993,7 @@ onUnmounted(() => {
           size="xs"
           color="neutral"
           variant="solid"
-          class="flex h-8 w-8 items-center justify-center rounded-full bg-black/50 opacity-70 hover:bg-black/70 hover:opacity-100"
+          class="flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white opacity-70 hover:bg-black/70 hover:opacity-100"
           @click="goToNextPage"
         />
       </div>
