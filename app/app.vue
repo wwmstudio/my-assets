@@ -7,8 +7,8 @@ useHead({
   }
 })
 
-const title = 'Nuxt Starter Template'
-const description = ''
+const title = 'My Assets'
+const description = 'My Assets is a collection of my assets'
 useSeoMeta({
   title,
   description,

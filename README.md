@@ -1,60 +1,110 @@
-# Nuxt Starter Template
+# My Assets
 
-[![Nuxt UI](https://img.shields.io/badge/Made%20with-Nuxt%20UI-00DC82?logo=nuxt&labelColor=020420)](https://ui.nuxt.com)
+A modern asset management application built with Nuxt 3, featuring image and video galleries with advanced viewing capabilities.
 
-Use this template to get started with [Nuxt UI](https://ui.nuxt.com) quickly.
+## Features
 
-- [Live demo](https://starter-template.nuxt.dev/)
-- [Documentation](https://ui.nuxt.com/docs/getting-started/installation/nuxt)
+- **Carousel View**: Full-screen carousel with autoplay for images and videos
+- **Grid View**: Responsive grid layout with keyboard navigation
+- **Bento View**: Pinterest-style masonry layout with dynamic aspect ratios
+- **Lightbox**: Advanced lightbox viewer with:
+  - Image zoom (up to 500%) and rotation
+  - Image panning when zoomed
+  - Video playback controls
+  - Thumbnail navigation
+  - Fullscreen mode
+  - Keyboard shortcuts
+- **Smooth Page Transitions**: Animated transitions between pages
+- **Entrance Animations**: Staggered tile animations on page load
+- **Accessibility**: Full keyboard navigation and ARIA labels
 
-<a href="https://starter-template.nuxt.dev/" target="_blank">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://ui.nuxt.com/assets/templates/nuxt/starter-dark.png">
-    <source media="(prefers-color-scheme: light)" srcset="https://ui.nuxt.com/assets/templates/nuxt/starter-light.png">
-    <img alt="Nuxt Starter Template" src="https://ui.nuxt.com/assets/templates/nuxt/starter-light.png">
-  </picture>
-</a>
+## Tech Stack
 
-> The starter template for Vue is on https://github.com/nuxt-ui-templates/starter-vue.
+- **Framework**: Nuxt 3
+- **UI Library**: Nuxt UI
+- **Image Optimization**: Nuxt Image
+- **Styling**: Tailwind CSS
 
-## Quick Start
+## Getting Started
 
-```bash [Terminal]
-npm create nuxt@latest -- -t github:nuxt-ui-templates/starter
+### Prerequisites
+
+- Node.js 18+
+- pnpm (recommended) or npm/yarn
+
+### Installation
+
+1. Clone the repository:
+
+```bash
+git clone <repository-url>
+cd my-assets
 ```
 
-## Deploy your own
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-name=starter&repository-url=https%3A%2F%2Fgithub.com%2Fnuxt-ui-templates%2Fstarter&demo-image=https%3A%2F%2Fui.nuxt.com%2Fassets%2Ftemplates%2Fnuxt%2Fstarter-dark.png&demo-url=https%3A%2F%2Fstarter-template.nuxt.dev%2F&demo-title=Nuxt%20Starter%20Template&demo-description=A%20minimal%20template%20to%20get%20started%20with%20Nuxt%20UI.)
-
-## Setup
-
-Make sure to install the dependencies:
+2. Install dependencies:
 
 ```bash
 pnpm install
 ```
 
-## Development Server
+### Development
 
-Start the development server on `http://localhost:3000`:
+Start the development server:
 
 ```bash
 pnpm dev
 ```
 
-## Production
+The application will be available at `http://localhost:3000`
 
-Build the application for production:
+### Build
+
+Build for production:
 
 ```bash
 pnpm build
 ```
 
-Locally preview production build:
+Preview production build:
 
 ```bash
 pnpm preview
 ```
 
-Check out the [deployment documentation](https://nuxt.com/docs/getting-started/deployment) for more information.
+## Project Structure
+
+```
+app/
+├── components/     # Vue components (Lightbox, TopNavigation, etc.)
+├── pages/         # Application pages (index, grid, bento)
+├── composables/   # Vue composables (useAssets)
+└── types/         # TypeScript type definitions
+```
+
+## Usage
+
+### Navigation
+
+- **Home** (`/`): Full-screen carousel view with autoplay
+- **Grid** (`/grid`): Grid layout of all assets
+- **Bento** (`/bento`): Masonry layout with dynamic aspect ratios
+
+### Keyboard Shortcuts
+
+#### Lightbox
+
+- `Escape`: Close lightbox
+- `Arrow Left/Right`: Navigate between assets or seek video
+- `Space`: Play/pause video
+- `+/-` or `Mouse Wheel`: Zoom in/out (images)
+- `R`: Rotate image
+- `0`: Reset image transform
+
+#### Grid/Bento Pages
+
+- `Tab`: Navigate between tiles
+- `Enter/Space`: Open asset in lightbox
+
+## License
+
+MIT
