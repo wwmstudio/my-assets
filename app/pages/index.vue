@@ -62,6 +62,10 @@ const seekIndicatorAmount = ref(0)
 const accumulatedSeekAmount = ref(0)
 let seekIndicatorTimer: ReturnType<typeof setTimeout> | null = null
 
+// Development preview modal
+const showDevPreviewModal = ref(false)
+const previewEndDate = '15 January 2026' // Update this date as needed
+
 const carousel = useTemplateRef('carousel')
 
 const currentAsset = computed(() => allAssets.value[currentIndex.value])
@@ -583,6 +587,8 @@ onMounted(() => {
   window.addEventListener('mousemove', handleMouseMove)
   startProgress()
   startAutoplay()
+  // Show development preview modal on mount
+  showDevPreviewModal.value = true
 })
 
 onUnmounted(() => {
@@ -998,6 +1004,20 @@ onUnmounted(() => {
         />
       </div>
     </div>
+    <!-- Development Preview Modal -->
+    <UModal
+      v-model:open="showDevPreviewModal"
+      title="Development Preview"
+    >
+      <template #body>
+        <p class="text-justify text-sm">
+          Please note: this is a development preview and is not intended for production use. The preview will remain
+          available until <strong class="text-primary">{{ previewEndDate }}</strong> after which it will be taken down
+          or replaced. Features and content may change, and your feedback is welcome as we continue to improve the
+          project.
+        </p>
+      </template>
+    </UModal>
   </div>
 </template>
 
